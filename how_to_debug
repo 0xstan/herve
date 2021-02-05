@@ -1,0 +1,51 @@
+add "nokaslr ignore_loglevel" to GRUB_CMDLINE_LINUX in /etc/default/grub
+
+GRUB_CMDLINE_LINUX="find_preseed=/preseed.cfg auto noprompt priority=critical locale=en_US nokaslr"
+then `sudo update-grub`
+
+add `debugStub.listen.guest64 = "TRUE"` to .vmx config file in host
+
+on the guest:
+
+```
+echo "deb http://ddebs.ubuntu.com $(lsb_release -cs) main restricted universe multiverse
+deb http://ddebs.ubuntu.com $(lsb_release -cs)-updates main restricted universe multiverse
+deb http://ddebs.ubuntu.com $(lsb_release -cs)-proposed main restricted universe multiverse" | \
+sudo tee -a /etc/apt/sources.list.d/ddebs.list
+sudo apt install ubuntu-dbgsym-keyring
+sudo apt-get update
+```
+
+sudo apt-get install linux-image-`uname -r`-dbgsym
+
+then copy /usr/lib/debug/boot/vmlinux-4.15.0-45-generic on the host 
+
+then `gdb vmlinux-4.15.0-45-generic`
+
+and `target remote localhost:8864` when it booted.
+
+for adding a module symbols, use `add-symbols-file module.ko addr` where addr is on the guest in /sys/module/module_name/sections/.text
+
+create a TTY in vmware vm:
+-> vm settings -> add -> serial port -> use output file -> connect at power
+
+then the tty is in /dev/ttySX. find X, in my case it was 1.
+
+then add `console=ttyS1,115200n8` to same GRUB_CMDLINE_LINUX and re `sudo update-grub` then reboot
+
+in the case of a triple fault bug, to have more information, set the debug to Full in Settings -> Options -> advanced settings
+then redo the triple fault, there'll be informations in ~/vmware/vm/vmware.log
+
+like this:
+
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 010 --- CS:XIP 0010 ffffffffc05100de SS:XSP 0000 ffff88820ecb7ff8 #TRIPLE          00000e CPL0 PROT 64-bit fluff=0000
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 009 --- CS:XIP 0010 ffffffffc05100de SS:XSP 0000 ffff88820ecb7ff8 NESTED #PF addr= fffffe0000000080 CPL0 PROT 64-bit fluff=0000
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 008 --- CS:XIP 0010 ffffffffc05100de SS:XSP 0000 ffff88820ecb7ff8 #DF              00000e CPL0 PROT 64-bit fluff=0000
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 007 --- CS:XIP 0010 ffffffffc05100de SS:XSP 0000 ffff88820ecb7ff8 NESTED #PF addr= fffffe00000000e0 CPL0 PROT 64-bit fluff=0000
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 006 --- CS:XIP 0010 ffffffffc05100de SS:XSP 0000 ffff88820ecb7ff8 #PF addr=        ffffffffc05100de CPL0 PROT 64-bit fluff=0000
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 005 --- CS:XIP 0f38 fffffffffc02157f SS:XSP 0f40 fffffffffc407a20 exc 0e eflags 00010202 errCode 0000 la 00002101deaeeff8
+2020-11-13T01:01:21.223+01:00| vcpu-0| I125: 004 --- CS:XIP 0010 ffffffff81c003a0 SS:XSP 0018 ffffc90001a07878 IRQ POST VECTOR= 000050 CPL0 PROT 64-bit fluff=0000
+
+The log are in reverse order. The first line tells where the triple fault appears, but we can look probably at the page fault before ! ( line 5 )
+
+A dump core is available too, gzip -d the files debug.guest.gz debug.vmem.gz and launch command `vmss2core debug.guest debug.vmem`
