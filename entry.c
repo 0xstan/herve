@@ -87,6 +87,6 @@ module_init(herve_init);
 module_exit(herve_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("masta");
+MODULE_AUTHOR("stan");
 MODULE_DESCRIPTION("That goddamn herve");
 MODULE_VERSION("1");
